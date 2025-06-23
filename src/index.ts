@@ -32,7 +32,9 @@ async function main() {
 
   // Start bot
   await bot.launch();
-  console.log('Latvia Flag Reminder Bot started successfully');
+  console.log(`✅ Latvia Flag Day Reminder Bot started successfully`);
+  console.log(`🚀 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`⏰ Daily reminders scheduled for 8:00 AM (Europe/Riga)`);
 
   // Graceful shutdown
   const shutdown = (signal: string) => {
