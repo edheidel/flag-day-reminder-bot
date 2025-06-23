@@ -1,0 +1,28 @@
+{
+  "name": "flag-bot",
+  "version": "1.0.0",
+  "description": "Latvia Flag Day Reminder Bot",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.5.0",
+    "luxon": "^3.6.1",
+    "node-cron": "^4.1.1",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "@types/luxon": "^3.6.2",
+    "@types/node": "^24.0.3",
+    "@types/node-cron": "^3.0.11",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}
