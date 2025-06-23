@@ -21,3 +21,6 @@ flag-bot.iml
 # Logs
 *.log
 npm-debug.log*
+
+# CI
+.nixpacks/
