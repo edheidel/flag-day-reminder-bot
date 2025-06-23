@@ -1,3 +1,7 @@
+# IDE files
+.idea/
+flag-bot.iml
+
 # Dependencies
 node_modules/
 
@@ -8,19 +12,9 @@ dist/
 .env
 
 # Data files
+data/
 subscribers.json
 
 # OS generated files
 .DS_Store
 Thumbs.db
-
-# IDE files
-.idea/
-flag-bot.iml
-
-# Logs
-*.log
-npm-debug.log*
-
-# CI
-.nixpacks/

@@ -9,7 +9,7 @@ export class FlagDayService implements IFlagDayService {
     { month: 6, day: 17, type: 'mourning', description: 'Latvijas Republikas okupācijas diena' },
     { month: 6, day: 23, type: 'normal', description: 'Līgo diena' },
     { month: 6, day: 24, type: 'normal', description: 'Jāņu diena' },
-    { month: 7, day: 4, type: 'mourning', description: 'Holokausta upuru piemiņas diena' },
+    { month: 7, day: 4, type: 'mourning', description: 'Ebreju tautas genocīda upuru piemiņas diena' },
     { month: 11, day: 11, type: 'normal', description: 'Lāčplēša diena' },
     { month: 11, day: 18, type: 'normal', description: 'Latvijas Republikas proklamēšanas diena' },
     { month: 3, day: 25, type: 'mourning', description: 'Komunistiskā genocīda upuru piemiņas diena' },
@@ -41,13 +41,14 @@ export class FlagDayService implements IFlagDayService {
     } : null;
 
     this.firstSundayCache.set(year, result);
+
     return result;
   }
 
   /**
    * Returns all flag days for a year with caching.
    */
-  async getAllFlagDaysForYear(year: number): Promise<(FlagDay | DynamicDate)[]> {
+  getAllFlagDaysForYear(year: number): (FlagDay | DynamicDate)[] {
     if (this.yearlyCache.has(year)) {
       return this.yearlyCache.get(year)!;
     }
@@ -55,23 +56,26 @@ export class FlagDayService implements IFlagDayService {
     const allDays: (FlagDay | DynamicDate)[] = [...FlagDayService.STATIC_FLAG_DAYS];
 
     const firstSundayDec = this.getFirstSundayOfDecember(year);
+
     if (firstSundayDec) {
       allDays.push(firstSundayDec);
     }
 
-    const dynamicDates = await this.dynamicDatesService.getDynamicDatesForYear(year);
+    const dynamicDates = this.dynamicDatesService.getDynamicDatesForYear(year);
+
     allDays.push(...dynamicDates);
 
     this.yearlyCache.set(year, allDays);
+
     return allDays;
   }
 
   /**
    * Optimized check for today's flag day with caching.
    */
-  async getFlagDayToday(): Promise<FlagDay | DynamicDate | null> {
+  getFlagDayToday(): FlagDay | DynamicDate | null {
     const today = DateTime.local({ zone: 'Europe/Riga' });
-    const todayKey = today.toISODate()!;
+    const todayKey = today.toISODate();
 
     if (this.todayCache?.date === todayKey) {
       return this.todayCache.result;
@@ -81,25 +85,30 @@ export class FlagDayService implements IFlagDayService {
     for (const dayInfo of FlagDayService.STATIC_FLAG_DAYS) {
       if (today.month === dayInfo.month && today.day === dayInfo.day) {
         this.todayCache = { date: todayKey, result: dayInfo };
+
         return dayInfo;
+
       }
     }
 
     // Check first Sunday of December
     const firstSundayDec = this.getFirstSundayOfDecember(today.year);
+
     if (firstSundayDec &&
       today.month === firstSundayDec.month &&
       today.day === firstSundayDec.day) {
       this.todayCache = { date: todayKey, result: firstSundayDec };
+
       return firstSundayDec;
     }
 
     // Check dynamic dates
-    const dynamicDate = await this.dynamicDatesService.getDynamicDateForToday(
-      today.month, today.day, today.year
+    const dynamicDate = this.dynamicDatesService.getDynamicDateForToday(
+      today.month, today.day, today.year,
     );
 
     this.todayCache = { date: todayKey, result: dynamicDate };
+
     return dynamicDate;
   }
 }

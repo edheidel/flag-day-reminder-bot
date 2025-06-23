@@ -4,7 +4,7 @@ A Telegram bot that reminds about Latvia's flag days.
 
 ## Features
 
-- Daily reminders for flag days at 8:00 AM (Europe/Riga)
+- Daily reminders for flag days at 7:00 AM (Europe/Riga)
 - Subscription management
 - Complete flag day calendar
 - Automatic first Sunday of December calculation
@@ -12,7 +12,7 @@ A Telegram bot that reminds about Latvia's flag days.
 ## Commands
 
 - `/start` - Start the bot
-- `/flagdays` - View flag day calendar
+- `/list` - View flag day calendar
 - `/subscribe` - Subscribe to daily reminders
 - `/unsubscribe` - Unsubscribe from reminders
 - `/status` - Check subscription status

@@ -1,52 +1,67 @@
-import 'dotenv/config';
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { Telegraf } from 'telegraf';
-import * as cron from 'node-cron';
-import { Container } from './container';
-import { CommandHandlers } from './handlers/CommandHandlers';
-import { INotificationService } from './types/types';
+import { Config } from './config/Config';
+import { Logger } from './utils/Logger';
+import { ServicesInitializer } from './ServicesInitializer';
+import { CommandHandler } from './handlers/CommandHandler';
 
-const BOT_TOKEN = process.env.BOT_TOKEN;
-
-if (!BOT_TOKEN) {
-  console.error('CRITICAL ERROR: BOT_TOKEN environment variable is not set');
-  process.exit(1);
-}
-
-async function main() {
-  if (!BOT_TOKEN) return;
-
-  const bot = new Telegraf(BOT_TOKEN);
-  const container = new Container(bot);
-  const commandHandlers = new CommandHandlers(container);
-
-  // Register all commands
-  commandHandlers.registerCommands(bot);
-
-  // Setup scheduler
-  const notificationService = container.get<INotificationService>('INotificationService');
-  cron.schedule('0 7 * * *', async () => {
-    await notificationService.sendReminders();
-  }, { timezone: 'Europe/Riga' });
-
-  console.log('Daily reminders scheduled for 7:00 AM (Europe/Riga)');
-
-  // Start bot
-  await bot.launch();
-  console.log(`✅ Latvia Flag Day Reminder Bot started successfully`);
-  console.log(`🚀 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`⏰ Daily reminders scheduled for 8:00 AM (Europe/Riga)`);
-
-  // Graceful shutdown
-  const shutdown = (signal: string) => {
-    console.log(`${signal} received. Stopping bot...`);
-    bot.stop(signal);
-  };
-
-  process.once('SIGINT', () => shutdown('SIGINT'));
-  process.once('SIGTERM', () => shutdown('SIGTERM'));
-}
-
-main().catch(error => {
-  console.error('Failed to start bot:', error);
-  process.exit(1);
+process.on('uncaughtException', (error) => {
+  Logger.error('Uncaught Exception', error);
+  void shutdown('UNCAUGHT_EXCEPTION');
 });
+
+process.on('unhandledRejection', (reason) => {
+  Logger.error('Unhandled Rejection', reason as Error);
+  void shutdown('UNHANDLED_REJECTION');
+});
+
+let services: ServicesInitializer | null = null;
+
+async function shutdown(signal: string): Promise<void> {
+  Logger.warn('Shutting down application', { signal });
+
+  if (services) {
+    try {
+      await services.stop();
+    } catch (error) {
+      Logger.error('Error during shutdown', error as Error);
+    }
+  }
+
+  // Allow logs to be flushed
+  setTimeout(() => process.exit(1), 1000);
+}
+
+async function main(): Promise<void> {
+  try {
+    Config.validate();
+    const bot = new Telegraf(Config.BOT_TOKEN);
+
+    services = new ServicesInitializer(bot);
+    await services.start();
+
+    const commandHandler = new CommandHandler(services);
+
+    commandHandler.registerCommands(bot);
+
+    await bot.launch();
+    Logger.info('Bot started successfully');
+
+    // Convert async shutdown to sync handler for process.once
+    process.once('SIGINT', () => { void shutdown('SIGINT'); });
+    process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
+
+    Logger.info('Application started successfully', {
+      env: Config.ENV,
+      notificationTime: Config.NOTIFICATION_TIME,
+      timezone: Config.TIMEZONE,
+    });
+  } catch (error) {
+    Logger.error('Failed to start application', error as Error);
+    await shutdown('STARTUP_FAILURE');
+  }
+}
+
+void main();

@@ -1,78 +1,60 @@
-import { promises as fs } from 'fs';
-import { join } from 'path';
-import { ISubscriberService } from '../types/types';
+import type { ISubscriberService } from '../types/types';
+import { Logger } from '../utils/Logger';
+import { StorageService } from './StorageService';
 
 export class SubscriberService implements ISubscriberService {
-  private readonly subscribers = new Set<number>();
-  private readonly logger = console;
-  private readonly dataDir = process.env.NODE_ENV === 'production'
-    ? '/app/data'  // Railway volume mount path
-    : 'data';      // Local development path
-  private readonly dataFile = join(this.dataDir, 'subscribers.json');
+  private subscribers: Set<number> = new Set();
+  private readonly storage: StorageService;
 
-  constructor() {
-    this.initializeStorage();
+  constructor(storagePath: string) {
+    this.storage = new StorageService(storagePath);
   }
 
-  private async initializeStorage(): Promise<void> {
-    try {
-      // Create data directory if it doesn't exist
-      await fs.mkdir(this.dataDir, { recursive: true });
-      await this.loadSubscribers();
-    } catch (error) {
-      this.logger.error('Failed to initialize storage:', error);
-    }
-  }
+  async initialize(): Promise<void> {
+    await this.storage.initialize();
+    const savedSubscribers = await this.storage.readSubscribers();
 
-  private async loadSubscribers(): Promise<void> {
-    try {
-      const data = await fs.readFile(this.dataFile, 'utf-8');
-      const subscriberArray = JSON.parse(data);
-      subscriberArray.forEach((id: number) => this.subscribers.add(id));
-      this.logger.info(`Loaded ${this.subscribers.size} subscribers from ${this.dataDir}`);
-    } catch (error) {
-      this.logger.info(`No existing subscribers file at ${this.dataFile}, starting fresh`);
-    }
-  }
-
-  private async saveSubscribers(): Promise<void> {
-    try {
-      const subscriberArray = Array.from(this.subscribers);
-      await fs.writeFile(this.dataFile, JSON.stringify(subscriberArray, null, 2));
-      this.logger.info(`Saved ${subscriberArray.length} subscribers to ${this.dataFile}`);
-    } catch (error) {
-      this.logger.error('Failed to save subscribers:', error);
-    }
+    this.subscribers = new Set(savedSubscribers);
+    Logger.info('Subscriber service initialized', { subscriberCount: this.subscribers.size });
   }
 
   async addSubscriber(chatId: number): Promise<boolean> {
-    if (!this.subscribers.has(chatId)) {
-      this.subscribers.add(chatId);
-      await this.saveSubscribers();
-      this.logger.info(`Subscriber added: ${chatId}`);
-      return true;
+    if (this.subscribers.has(chatId)) {
+      Logger.debug('Subscription attempt for existing subscriber', { chatId });
+
+      return false;
     }
-    return false;
+
+    this.subscribers.add(chatId);
+    await this.storage.writeSubscribers([...this.subscribers]);
+    Logger.info('New subscriber added', { chatId, totalSubscribers: this.subscribers.size });
+
+    return true;
   }
 
   async removeSubscriber(chatId: number): Promise<boolean> {
-    if (this.subscribers.delete(chatId)) {
-      await this.saveSubscribers();
-      this.logger.info(`Subscriber removed: ${chatId}`);
-      return true;
+    if (!this.subscribers.has(chatId)) {
+      Logger.debug('Unsubscribe attempt for non-existent subscriber', { chatId });
+
+      return false;
     }
-    return false;
+
+    this.subscribers.delete(chatId);
+    await this.storage.writeSubscribers([...this.subscribers]);
+    Logger.info('Subscriber removed', { chatId, totalSubscribers: this.subscribers.size });
+
+    return true;
   }
 
-  async getAllSubscribers(): Promise<number[]> {
-    return Array.from(this.subscribers);
+  getAllSubscribers(): number[] {
+    return [...this.subscribers];
   }
 
-  async isSubscribed(chatId: number): Promise<boolean> {
+  isSubscribed(chatId: number): boolean {
     return this.subscribers.has(chatId);
   }
 
-  async getSubscriberCount(): Promise<number> {
+  getSubscriberCount(): number {
     return this.subscribers.size;
   }
 }

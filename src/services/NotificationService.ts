@@ -1,6 +1,12 @@
-import { Telegraf } from 'telegraf';
+import { Telegraf, TelegramError } from 'telegraf';
 import { DateTime } from 'luxon';
-import { INotificationService, IFlagDayService, ISubscriberService } from '../types/types';
+import {
+  INotificationService,
+  IFlagDayService,
+  ISubscriberService,
+  type FlagDay,
+  type DynamicDate, type SendResult,
+} from '../types/types';
 import { DateFormatter } from '../utils/DateFormatter';
 
 export class NotificationService implements INotificationService {
@@ -9,11 +15,10 @@ export class NotificationService implements INotificationService {
   constructor(
     private readonly bot: Telegraf,
     private readonly flagDayService: IFlagDayService,
-    private readonly subscriberService: ISubscriberService
+    private readonly subscriberService: ISubscriberService,
   ) {}
 
-  private buildReminderMessage(flagDayInfo: any, today: DateTime): string {
-    // Use Latvian date format
+  private buildReminderMessage(flagDayInfo: FlagDay | DynamicDate, today: DateTime): string {
     const dateStr = DateFormatter.formatLatvianDate(today.day, today.month);
     const baseMessage = `Šodien, ${dateStr} - ${flagDayInfo.description}.`;
 
@@ -24,21 +29,24 @@ export class NotificationService implements INotificationService {
 
   async sendReminders(): Promise<void> {
     const startTime = Date.now();
+
     this.logger.info('Starting flag day reminder check...');
 
     try {
       const [flagDayInfo, subscribers] = await Promise.all([
         this.flagDayService.getFlagDayToday(),
-        this.subscriberService.getAllSubscribers()
+        this.subscriberService.getAllSubscribers(),
       ]);
 
       if (!flagDayInfo) {
         this.logger.info('No flag day today');
+
         return;
       }
 
       if (subscribers.length === 0) {
         this.logger.info('No subscribers to notify');
+
         return;
       }
 
@@ -63,15 +71,19 @@ export class NotificationService implements INotificationService {
           try {
             await this.bot.telegram.sendMessage(chatId, reminderMessage);
             successCount++;
-            return { success: true, chatId };
-          } catch (error: any) {
+
+            return { success: true, chatId } as SendResult;
+          } catch (error) {
+            const telegramError = error as TelegramError;
+
             errorCount++;
-            if (error.response?.error_code === 403) {
+            if (telegramError.response?.error_code === 403) {
               this.logger.warn(`Bot blocked by user ${chatId}, removing subscriber`);
               await this.subscriberService.removeSubscriber(chatId);
             } else {
-              this.logger.error(`Failed to send reminder to ${chatId}: ${error.message}`);
+              this.logger.error(`Failed to send reminder to ${chatId}: ${telegramError.message}`);
             }
+
             return { success: false, chatId, error };
           }
         });
@@ -80,11 +92,12 @@ export class NotificationService implements INotificationService {
 
         // Rate limiting: small delay between batches
         if (batches.indexOf(batch) < batches.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise((resolve) => setTimeout(resolve, 100));
         }
       }
 
       const duration = Date.now() - startTime;
+
       this.logger.info(`Reminder sending completed in ${duration}ms. Success: ${successCount}, Errors: ${errorCount}`);
 
     } catch (error) {
