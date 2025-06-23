@@ -1,0 +1,8 @@
+{
+  "volumes": [
+    {
+      "name": "bot-data",
+      "mount": "/app/data"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { DateTime } from 'luxon';
 import { INotificationService, IFlagDayService, ISubscriberService } from '../types/types';
+import { DateFormatter } from '../utils/DateFormatter';
 
 export class NotificationService implements INotificationService {
   private readonly logger = console;
@@ -12,8 +13,8 @@ export class NotificationService implements INotificationService {
   ) {}
 
   private buildReminderMessage(flagDayInfo: any, today: DateTime): string {
-    // Pre-build message parts for efficiency
-    const dateStr = `${today.day}.${today.month}`;
+    // Use Latvian date format
+    const dateStr = DateFormatter.formatLatvianDate(today.day, today.month);
     const baseMessage = `Šodien, ${dateStr} - ${flagDayInfo.description}.`;
 
     return flagDayInfo.type === 'normal'

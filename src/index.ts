@@ -24,11 +24,11 @@ async function main() {
 
   // Setup scheduler
   const notificationService = container.get<INotificationService>('INotificationService');
-  cron.schedule('0 8 * * *', async () => {
+  cron.schedule('0 7 * * *', async () => {
     await notificationService.sendReminders();
   }, { timezone: 'Europe/Riga' });
 
-  console.log('Daily reminders scheduled for 8:00 AM (Europe/Riga)');
+  console.log('Daily reminders scheduled for 7:00 AM (Europe/Riga)');
 
   // Start bot
   await bot.launch();

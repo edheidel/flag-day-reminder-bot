@@ -1,11 +1,13 @@
 import { FlagDay, DynamicDate } from '../types/types';
+import { DateFormatter } from '../utils/DateFormatter';
 
 export class MessageService {
   private static readonly MESSAGE_TEMPLATES = {
     FLAG_DAYS_HEADER: (year: number) => `Saraksts ar dienām, kad jāizkar Latvijas valsts karogs (${year}. gads):\n\n`,
     NORMAL_DAYS_HEADER: '🗓️ *Svinamās dienas (parastais karogs):*\n',
     MOURNING_DAYS_HEADER: '\n⚫ *Sēru dienas (karogs ar melnu lenti):*\n',
-    DAY_ENTRY: (day: number, month: number, description: string) => `  - ${day}.${month}: ${description}\n`
+    DAY_ENTRY: (day: number, month: number, description: string) =>
+      `  - ${DateFormatter.formatLatvianDate(day, month)}: ${description}\n`
   };
 
   /**
