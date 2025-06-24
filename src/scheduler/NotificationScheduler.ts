@@ -19,8 +19,6 @@ export class NotificationScheduler implements IService {
       await this.notificationService.sendReminders();
     }, { timezone: Config.TIMEZONE });
 
-    Logger.info('Notification scheduler initialized');
-
     return Promise.resolve();
   }
 

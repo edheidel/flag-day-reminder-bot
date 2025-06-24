@@ -1,7 +1,7 @@
 {
   "name": "flag-bot",
   "version": "1.0.0",
-  "description": "Latvia Flag Day Reminder Bot",
+  "description": "Flag Reminder Bot",
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node src/index.ts",

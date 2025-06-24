@@ -39,7 +39,7 @@ export class HttpServerService implements IService {
         const addr = this.server!.address() as { address: string; port: number } | null;
         const host = addr?.address || '0.0.0.0';
 
-        Logger.info(`HTTP server started http://${host}:${this.port}/admin`, { host, port: this.port });
+        Logger.info(`Setting up HTTP server http://${host}:${this.port}/admin`, { host, port: this.port });
         resolve();
       });
 

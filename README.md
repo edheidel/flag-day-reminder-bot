@@ -1,4 +1,4 @@
-# Latvia Flag Day Reminder Bot
+# Flag Reminder Bot
 
 A Telegram bot that reminds about Latvia's flag days.
 
@@ -30,20 +30,14 @@ A Telegram bot that reminds about Latvia's flag days.
    ```
 4. Run in development mode: `npm run dev`
 
-### Deployment
+## Environment Variables
 
-#### Railway
-
-1. Push your code to GitHub
-2. Connect Railway to your GitHub repository
-3. Set environment variable in Railway dashboard:
-   - `BOT_TOKEN` = your bot token
-4. Deploy automatically
-
-#### Other Platforms
-
-Set the following environment variable:
-- `BOT_TOKEN` - Your Telegram bot token from @BotFather
+- `BOT_TOKEN` - Telegram bot token (required)
+- `NOTIFICATION_TIME` - Hour for daily notifications (default: 7)
+- `TIMEZONE` - Timezone for notifications (default: Europe/Riga)
+- `HTTP_PORT` - Port for HTTP server (default: 3000)
+- `ENV` - Environment name (development/production)
+- `STORAGE_PATH` - Path for storing subscriber data
 
 ## Development
 
