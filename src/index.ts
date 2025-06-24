@@ -30,7 +30,6 @@ async function shutdown(signal: string): Promise<void> {
     }
   }
 
-  // Allow logs to be flushed
   setTimeout(() => process.exit(1), 1000);
 }
 
@@ -41,15 +40,12 @@ async function main(): Promise<void> {
 
     services = new ServicesInitializer(bot);
     await services.start();
-
     const commandHandler = new CommandHandler(services);
 
     commandHandler.registerCommands(bot);
-
     await bot.launch();
     Logger.info('Bot started successfully');
 
-    // Convert async shutdown to sync handler for process.once
     process.once('SIGINT', () => { void shutdown('SIGINT'); });
     process.once('SIGTERM', () => { void shutdown('SIGTERM'); });
 

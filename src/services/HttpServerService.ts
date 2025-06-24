@@ -90,13 +90,6 @@ export class HttpServerService implements IService {
   private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
     const url = new URL(req.url!, `http://${req.headers.host}`);
 
-    Logger.info('Incoming request', {
-      method: req.method,
-      url: req.url,
-      pathname: url.pathname,
-      headers: req.headers,
-    });
-
     switch (url.pathname) {
       case '/health':
         this.handleHealthCheck(res);

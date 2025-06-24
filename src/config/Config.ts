@@ -41,7 +41,7 @@ export class Config {
     return value;
   }
 
-  private static parseNotificationTime(): number {
+  public static parseNotificationTime(): number {
     const time = parseInt(process.env.NOTIFICATION_TIME || '7', 10);
 
     if (isNaN(time) || time < 0 || time > 23) {

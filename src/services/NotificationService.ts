@@ -23,8 +23,8 @@ export class NotificationService implements INotificationService {
     const baseMessage = `Šodien, ${dateStr} - ${flagDayInfo.description}.`;
 
     return flagDayInfo.type === 'normal'
-      ? `${baseMessage} Izkarat Latvijas valsts karogu!`
-      : `${baseMessage} Izkarat Latvijas valsts karogu ar melnu sēru lenti!`;
+      ? `${baseMessage} 🇱🇻 Izkarat Latvijas valsts karogu!`
+      : `${baseMessage} ⚫ Izkarat Latvijas valsts karogu ar melnu sēru lenti!`;
   }
 
   async sendReminders(): Promise<void> {

@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf';
+import { NotificationScheduler } from './scheduler/NotificationScheduler';
 import { IService } from './types/types';
 import { DynamicDatesService } from './services/DynamicDatesService';
 import { SubscriberService } from './services/SubscriberService';
@@ -32,7 +33,7 @@ export class ServicesInitializer implements IService {
         subscriberService,
       );
 
-      // HTTP Server service
+      const notificationScheduler = new NotificationScheduler(notificationService);
       const httpServerService = new HttpServerService(Config.HTTP_PORT, subscriberService);
 
       // Register services
@@ -40,6 +41,7 @@ export class ServicesInitializer implements IService {
       this.services.set('ISubscriberService', subscriberService);
       this.services.set('IFlagDayService', flagDayService);
       this.services.set('INotificationService', notificationService);
+      this.services.set('NotificationScheduler', notificationScheduler);
       this.services.set('HttpServerService', httpServerService);
 
       // Start services that implement IService
