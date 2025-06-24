@@ -1,8 +1,20 @@
-/**
- * Formats day and month to Latvian format (DD.MM)
- */
 export class DateFormatter {
+  private static readonly LATVIAN_MONTHS = [
+    'janvāris',
+    'februāris',
+    'marts',
+    'aprīlis',
+    'maijs',
+    'jūnijs',
+    'jūlijs',
+    'augusts',
+    'septembris',
+    'oktobris',
+    'novembris',
+    'decembris',
+  ];
+
   static formatLatvianDate(day: number, month: number): string {
-    return `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}`;
+    return `${day}. ${this.LATVIAN_MONTHS[month - 1]}`;
   }
 }

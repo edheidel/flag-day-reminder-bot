@@ -1,107 +1,99 @@
-import { Telegraf, TelegramError } from 'telegraf';
+import * as cron from 'node-cron';
 import { DateTime } from 'luxon';
-import {
-  INotificationService,
-  IFlagDayService,
-  ISubscriberService,
-  type FlagDay,
-  type DynamicDate, type SendResult,
-} from '../types/types';
-import { DateFormatter } from '../utils/DateFormatter';
+import { Telegraf } from 'telegraf';
+import { IFlagDayService, ISubscriberService, BotContext } from '../types/types';
+import { MessageService } from './MessageService';
+import { Logger } from '../utils/Logger';
+import { Config } from '../config/config';
 
-export class NotificationService implements INotificationService {
-  private readonly logger = console;
+export class NotificationService {
+  private cronJob: cron.ScheduledTask | null = null;
 
   constructor(
-    private readonly bot: Telegraf,
+    private readonly bot: Telegraf<BotContext>,
     private readonly flagDayService: IFlagDayService,
     private readonly subscriberService: ISubscriberService,
   ) {}
 
-  private buildReminderMessage(flagDayInfo: FlagDay | DynamicDate, today: DateTime): string {
-    const dateStr = DateFormatter.formatLatvianDate(today.day, today.month);
-    const baseMessage = `Šodien, ${dateStr} - ${flagDayInfo.description}.`;
+  start(): void {
+    this.cronJob = cron.schedule(
+      `0 ${Config.NOTIFICATION_TIME} * * *`,
+      () => void this.sendNotifications(),
+      { timezone: Config.TIMEZONE },
+    );
 
-    return flagDayInfo.type === 'normal'
-      ? `${baseMessage} 🇱🇻 Izkarat Latvijas valsts karogu!`
-      : `${baseMessage} ⚫ Izkarat Latvijas valsts karogu ar melnu sēru lenti!`;
+    Logger.info('Notification scheduler started', {
+      time: Config.NOTIFICATION_TIME,
+      timezone: Config.TIMEZONE,
+    });
   }
 
-  async sendReminders(): Promise<void> {
+  stop(): void {
+    if (this.cronJob) {
+      void this.cronJob.stop();
+      this.cronJob = null;
+      Logger.info('Notification scheduler stopped');
+    }
+  }
+
+  async sendNotifications(): Promise<void> {
     const startTime = Date.now();
 
-    this.logger.info('Starting flag day reminder check...');
+    Logger.info('Starting flag day reminder check...');
 
     try {
-      const [flagDayInfo, subscribers] = await Promise.all([
-        this.flagDayService.getFlagDayToday(),
-        this.subscriberService.getAllSubscribers(),
-      ]);
+      const flagDayInfo = this.flagDayService.getFlagDayToday();
 
       if (!flagDayInfo) {
-        this.logger.info('No flag day today');
+        Logger.info('No flag day today');
 
         return;
       }
+
+      const subscribers = await this.subscriberService.getAllSubscribers();
 
       if (subscribers.length === 0) {
-        this.logger.info('No subscribers to notify');
+        Logger.info('No subscribers to notify');
 
         return;
       }
 
-      const today = DateTime.local({ zone: 'Europe/Riga' });
-      const reminderMessage = this.buildReminderMessage(flagDayInfo, today);
+      const today = DateTime.local({ zone: Config.TIMEZONE });
+      const reminderMessage = MessageService.buildReminderMessage(flagDayInfo, today);
 
-      this.logger.info(`Sending reminders to ${subscribers.length} subscribers for: ${flagDayInfo.description}`);
+      Logger.info(`Sending reminders to ${subscribers.length} subscribers for: ${flagDayInfo.description}`);
 
-      // Batch processing for better performance with many subscribers
-      const batchSize = 50; // Telegram rate limiting consideration
-      const batches: number[][] = [];
+      const results = await Promise.allSettled(
+        subscribers.map((chatId) => this.sendMessage(chatId, reminderMessage)),
+      );
 
-      for (let i = 0; i < subscribers.length; i += batchSize) {
-        batches.push(subscribers.slice(i, i + batchSize));
-      }
-
-      let successCount = 0;
-      let errorCount = 0;
-
-      for (const batch of batches) {
-        const batchPromises = batch.map(async (chatId) => {
-          try {
-            await this.bot.telegram.sendMessage(chatId, reminderMessage);
-            successCount++;
-
-            return { success: true, chatId } as SendResult;
-          } catch (error) {
-            const telegramError = error as TelegramError;
-
-            errorCount++;
-            if (telegramError.response?.error_code === 403) {
-              this.logger.warn(`Bot blocked by user ${chatId}, removing subscriber`);
-              await this.subscriberService.removeSubscriber(chatId);
-            } else {
-              this.logger.error(`Failed to send reminder to ${chatId}: ${telegramError.message}`);
-            }
-
-            return { success: false, chatId, error };
-          }
-        });
-
-        await Promise.allSettled(batchPromises);
-
-        // Rate limiting: small delay between batches
-        if (batches.indexOf(batch) < batches.length - 1) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-      }
+      const successCount = results.filter((r) => r.status === 'fulfilled' && r.value.success).length;
+      const errorCount = results.filter((r) => r.status === 'rejected' || !r.value?.success).length;
 
       const duration = Date.now() - startTime;
 
-      this.logger.info(`Reminder sending completed in ${duration}ms. Success: ${successCount}, Errors: ${errorCount}`);
-
+      Logger.info(`Reminder sending completed in ${duration}ms. Success: ${successCount}, Errors: ${errorCount}`);
     } catch (error) {
-      this.logger.error('Error during reminder sending:', error);
+      Logger.error('Error during reminder sending', error);
+    }
+  }
+
+  private async sendMessage(chatId: number, message: string): Promise<{success: boolean, chatId: number}> {
+    try {
+      await this.bot.telegram.sendMessage(chatId, message);
+
+      return { success: true, chatId };
+    } catch (error) {
+      const telegramError = error as { response?: { error_code: number } };
+
+      if (telegramError.response?.error_code === 403) {
+        Logger.warn(`Bot blocked by user ${chatId}, removing subscriber`);
+        await this.subscriberService.removeSubscriber(chatId);
+      } else {
+        Logger.error(`Failed to send reminder to ${chatId}`, error);
+      }
+
+      return { success: false, chatId };
     }
   }
 }

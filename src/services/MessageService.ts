@@ -1,55 +1,48 @@
+import { DateTime } from 'luxon';
 import { FlagDay, DynamicDate } from '../types/types';
 import { DateFormatter } from '../utils/DateFormatter';
 
 export class MessageService {
-  private static readonly MESSAGE_TEMPLATES = {
-    FLAG_DAYS_HEADER: (year: number): string => `Saraksts ar dienām, kad jāizkar Latvijas valsts karogs (${year}. gads):\n\n`,
-    NORMAL_DAYS_HEADER: '🗓️ *Svinamās dienas (parastais karogs):*\n',
-    MOURNING_DAYS_HEADER: '\n⚫ *Sēru dienas (karogs ar melnu lenti):*\n',
-    DAY_ENTRY: (day: number, month: number, description: string): string => `– ${DateFormatter.formatLatvianDate(day, month)}: ${description}\n`,
-  };
-
-  /**
-   * Efficiently builds flag days message using StringBuilder pattern.
-   */
   static buildFlagDaysMessage(flagDays: (FlagDay | DynamicDate)[], year: number): string {
-    const parts: string[] = [];
-
-    parts.push(this.MESSAGE_TEMPLATES.FLAG_DAYS_HEADER(year));
-
-    // Separate and sort for consistent display
-    const normalDays = flagDays.filter((d) => d.type === 'normal')
-      .sort((a, b) => a.month !== b.month ? a.month - b.month : a.day - b.day);
-    const mourningDays = flagDays.filter((d) => d.type === 'mourning')
-      .sort((a, b) => a.month !== b.month ? a.month - b.month : a.day - b.day);
-
-    // Build normal days section
-    if (normalDays.length > 0) {
-      parts.push(this.MESSAGE_TEMPLATES.NORMAL_DAYS_HEADER);
-      normalDays.forEach((d) => {
-        parts.push(this.MESSAGE_TEMPLATES.DAY_ENTRY(d.day, d.month, d.description));
-      });
+    if (flagDays.length === 0) {
+      return 'Nav atrasta neviena karoga diena.';
     }
 
-    // Build mourning days section
-    if (mourningDays.length > 0) {
-      parts.push(this.MESSAGE_TEMPLATES.MOURNING_DAYS_HEADER);
-      mourningDays.forEach((d) => {
-        parts.push(this.MESSAGE_TEMPLATES.DAY_ENTRY(d.day, d.month, d.description));
-      });
+    const sortedDays = [...flagDays].sort((a, b) => {
+      if (a.month !== b.month) {
+        return a.month - b.month;
+      }
+
+      return a.day - b.day;
+    });
+
+    let message = `*Latvijas valsts karoga izkāršanas dienas ${year}. gadā:*\n\n`;
+
+    for (const flagDay of sortedDays) {
+      const dateStr = DateFormatter.formatLatvianDate(flagDay.day, flagDay.month);
+
+      message += `${flagDay.type === 'mourning' ? '🏴' : '🇱🇻'} *${dateStr}* - ${flagDay.description}\n`;
     }
 
-    return parts.join('');
+    return message;
+  }
+
+  static buildReminderMessage(flagDayInfo: FlagDay | DynamicDate, today: DateTime): string {
+    const dateStr = DateFormatter.formatLatvianDate(today.day, today.month);
+    const baseMessage = `Šodien, ${dateStr} - ${flagDayInfo.description}.`;
+
+    return flagDayInfo.type === 'normal'
+      ? `${baseMessage} Izkarat Latvijas valsts karogu!`
+      : `${baseMessage} Izkarat Latvijas valsts karogu ar melnu sēru lenti!`;
   }
 
   static buildHelpMessage(): string {
-    return `*Pieejamās komandas:*
-
-/start - Sākt darbu ar botu
-/list - Apskatīt karoga dienu sarakstu
-/subscribe - Abonēt ikdienas atgādinājumus
-/unsubscribe - Atteikties no atgādinājumiem
-/status - Apskatīt savu statusu
-/help - Šis palīdzības saraksts`;
+    return '*Latvijas karoga izkāršanas dienu atgādinātājs*\n\n'
+      + 'Komandas:\n'
+      + '/start - Sākt darbu ar botu\n'
+      + '/list - Parādīt karoga dienu sarakstu\n'
+      + '/subscribe - Abonēt karoga dienu atgādinājumus\n'
+      + '/unsubscribe - Atcelt karoga dienu atgādinājumus\n'
+      + '/help - Parādīt šo palīdzības ziņojumu';
   }
 }

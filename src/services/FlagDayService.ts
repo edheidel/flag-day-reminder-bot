@@ -1,5 +1,6 @@
 import { DateTime } from 'luxon';
 import { FlagDay, DynamicDate, IFlagDayService, IDynamicDatesService } from '../types/types';
+import { Config } from '../config/config';
 
 export class FlagDayService implements IFlagDayService {
   private static readonly STATIC_FLAG_DAYS: Readonly<FlagDay[]> = Object.freeze([
@@ -16,34 +17,9 @@ export class FlagDayService implements IFlagDayService {
   ]);
 
   private readonly yearlyCache = new Map<number, (FlagDay | DynamicDate)[]>();
-  private readonly firstSundayCache = new Map<number, FlagDay | null>();
   private todayCache: { date: string; result: FlagDay | DynamicDate | null } | null = null;
 
   constructor(private readonly dynamicDatesService: IDynamicDatesService) {}
-
-  /**
-   * Calculates and caches the first Sunday of December for a given year.
-   */
-  private getFirstSundayOfDecember(year: number): FlagDay | null {
-    if (this.firstSundayCache.has(year)) {
-      return this.firstSundayCache.get(year)!;
-    }
-
-    const firstDecember = DateTime.local(year, 12, 1, { zone: 'Europe/Riga' });
-    const daysToAdd = firstDecember.weekday === 7 ? 0 : (7 - firstDecember.weekday + 7) % 7;
-    const firstSunday = firstDecember.plus({ days: daysToAdd });
-
-    const result = firstSunday.month === 12 ? {
-      month: firstSunday.month,
-      day: firstSunday.day,
-      type: 'mourning' as const,
-      description: 'Komunistiskā režīma upuru piemiņas diena',
-    } : null;
-
-    this.firstSundayCache.set(year, result);
-
-    return result;
-  }
 
   /**
    * Returns all flag days for a year with caching.
@@ -54,17 +30,9 @@ export class FlagDayService implements IFlagDayService {
     }
 
     const allDays: (FlagDay | DynamicDate)[] = [...FlagDayService.STATIC_FLAG_DAYS];
-
-    const firstSundayDec = this.getFirstSundayOfDecember(year);
-
-    if (firstSundayDec) {
-      allDays.push(firstSundayDec);
-    }
-
     const dynamicDates = this.dynamicDatesService.getDynamicDatesForYear(year);
 
     allDays.push(...dynamicDates);
-
     this.yearlyCache.set(year, allDays);
 
     return allDays;
@@ -74,7 +42,7 @@ export class FlagDayService implements IFlagDayService {
    * Optimized check for today's flag day with caching.
    */
   getFlagDayToday(): FlagDay | DynamicDate | null {
-    const today = DateTime.local({ zone: 'Europe/Riga' });
+    const today = DateTime.local({ zone: Config.TIMEZONE });
     const todayKey = today.toISODate();
 
     if (this.todayCache?.date === todayKey) {
@@ -87,19 +55,7 @@ export class FlagDayService implements IFlagDayService {
         this.todayCache = { date: todayKey, result: dayInfo };
 
         return dayInfo;
-
       }
-    }
-
-    // Check first Sunday of December
-    const firstSundayDec = this.getFirstSundayOfDecember(today.year);
-
-    if (firstSundayDec &&
-      today.month === firstSundayDec.month &&
-      today.day === firstSundayDec.day) {
-      this.todayCache = { date: todayKey, result: firstSundayDec };
-
-      return firstSundayDec;
     }
 
     // Check dynamic dates

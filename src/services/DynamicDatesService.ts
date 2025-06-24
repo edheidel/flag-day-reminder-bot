@@ -1,78 +1,82 @@
-import { DynamicDate, IDynamicDatesService } from '../types/types';
+import { DateTime } from 'luxon';
+import type { DynamicDate, IDynamicDatesService } from '../types/types';
+import { Config } from '../config/config';
 
 export class DynamicDatesService implements IDynamicDatesService {
-  private readonly dynamicDates = new Map<string, DynamicDate>();
-  private readonly yearIndex = new Map<number, DynamicDate[]>();
-  private readonly logger = console;
-
-  private generateKey(year: number, month: number, day: number, category: string): string {
-    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}-${category}`;
-  }
-
-  private updateYearIndex(date: DynamicDate, isAddition: boolean): void {
-    const existing = this.yearIndex.get(date.year) || [];
-
-    if (isAddition) {
-      existing.push(date);
-      this.yearIndex.set(date.year, existing);
-    } else {
-      const filtered = existing.filter((d) =>
-        !(d.month === date.month && d.day === date.day && d.category === date.category),
-      );
-
-      if (filtered.length > 0) {
-        this.yearIndex.set(date.year, filtered);
-      } else {
-        this.yearIndex.delete(date.year);
-      }
-    }
-  }
-
-  addDynamicDate(date: DynamicDate): boolean {
-    const key = this.generateKey(date.year, date.month, date.day, date.category);
-
-    if (!this.dynamicDates.has(key)) {
-      this.dynamicDates.set(key, date);
-      this.updateYearIndex(date, true);
-      this.logger.info(`Dynamic date added: ${date.description} on ${date.day}.${date.month}.${date.year}`);
-
-      return true;
-    }
-
-    return false;
-  }
-
-  removeDynamicDate(year: number, month: number, day: number, category: string): boolean {
-    const key = this.generateKey(year, month, day, category);
-    const date = this.dynamicDates.get(key);
-
-    if (date && this.dynamicDates.delete(key)) {
-      this.updateYearIndex(date, false);
-      this.logger.info(`Dynamic date removed: ${day}.${month}.${year} (${category})`);
-
-      return true;
-    }
-
-    return false;
-  }
+  private readonly yearCache = new Map<number, DynamicDate[]>();
 
   getDynamicDatesForYear(year: number): DynamicDate[] {
-    return this.yearIndex.get(year) || [];
+    if (this.yearCache.has(year)) {
+      return this.yearCache.get(year)!;
+    }
+
+    const easterDate = this.calculateEaster(year);
+    const goodFriday = easterDate.minus({ days: 2 });
+    const firstSundayDec = this.calculateFirstSundayOfDecember(year);
+
+    const dynamicDates: DynamicDate[] = [
+      {
+        month: goodFriday.month,
+        day: goodFriday.day,
+        year,
+        type: 'mourning',
+        description: 'Lielā Piektdiena',
+      },
+      {
+        month: easterDate.month,
+        day: easterDate.day,
+        year,
+        type: 'normal',
+        description: 'Lieldienas',
+      },
+    ];
+
+    if (firstSundayDec) {
+      dynamicDates.push({
+        month: firstSundayDec.month,
+        day: firstSundayDec.day,
+        year,
+        type: 'mourning',
+        description: 'Komunistiskā režīma upuru piemiņas diena',
+      });
+    }
+
+    this.yearCache.set(year, dynamicDates);
+
+    return dynamicDates;
   }
 
   getDynamicDateForToday(month: number, day: number, year: number): DynamicDate | null {
-    // Check all categories for this date
-    const categories = ['election', 'referendum', 'special'];
+    const dynamicDates = this.getDynamicDatesForYear(year);
 
-    for (const category of categories) {
-      const key = this.generateKey(year, month, day, category);
-      const date = this.dynamicDates.get(key);
+    return dynamicDates.find((date) => date.month === month && date.day === day) || null;
+  }
 
-      if (date) {
-        return date;
-      }
-    }
+  private calculateFirstSundayOfDecember(year: number): DateTime | null {
+    const firstDecember = DateTime.local(year, 12, 1, { zone: Config.TIMEZONE });
+    const daysToAdd = firstDecember.weekday === 7 ? 0 : (7 - firstDecember.weekday) % 7;
+    const firstSunday = firstDecember.plus({ days: daysToAdd });
 
-    return null;
+    return firstSunday.month === 12 ? firstSunday : null;
+  }
+
+  private calculateEaster(year: number): DateTime {
+    // Butcher-Meeus algorithm for calculating Easter
+    const a = year % 19;
+    const b = Math.floor(year / 100);
+    const c = year % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const month = Math.floor((h + l - 7 * m + 114) / 31);
+    const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+    return DateTime.local(year, month, day, { zone: Config.TIMEZONE });
   }
 }

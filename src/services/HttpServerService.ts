@@ -1,11 +1,11 @@
 import * as http from 'http';
 import { Server } from 'http';
 import { DateTime } from 'luxon';
-import { ISubscriberService, IService, type HealthCheckResult } from '../types/types';
+import { ISubscriberService, HealthCheckResult } from '../types/types';
 import { Logger } from '../utils/Logger';
-import { Config } from '../config/Config';
+import { Config } from '../config/config';
 
-export class HttpServerService implements IService {
+export class HttpServerService {
   private server: Server | null = null;
   private isShuttingDown = false;
   private activeConnections = new Set<http.ServerResponse>();
@@ -27,19 +27,11 @@ export class HttpServerService implements IService {
           return;
         }
 
-        Promise.resolve().then(() => {
-          this.handleRequest(req, res);
-        }).catch((error) => {
-          Logger.error('Request handling error', error as Error);
-          this.sendResponse(res, 500, 'Internal Server Error');
-        });
+        this.handleRequestSafe(req, res);
       });
 
       this.server.listen(this.port, '0.0.0.0', () => {
-        const addr = this.server!.address() as { address: string; port: number } | null;
-        const host = addr?.address || '0.0.0.0';
-
-        Logger.info(`Setting up HTTP server http://${host}:${this.port}/admin`, { host, port: this.port });
+        Logger.info(`HTTP server listening on port ${this.port}`, { port: this.port });
         resolve();
       });
 
@@ -56,20 +48,22 @@ export class HttpServerService implements IService {
 
     this.isShuttingDown = true;
 
-    // Close all active connections
     for (const connection of this.activeConnections) {
       connection.end();
     }
 
     return new Promise((resolve) => {
-      const server = this.server!; // Save reference to avoid null check
+      if (!this.server) {
+        return resolve();
+      }
+
       const timeout = setTimeout(() => {
-        Logger.error('Force closing HTTP server due to timeout'); // Changed from warn to error
-        server.close();
+        Logger.error('Force closing HTTP server due to timeout');
+        this.server?.close();
         resolve();
       }, Config.SHUTDOWN_TIMEOUT);
 
-      server.close(() => {
+      this.server.close(() => {
         clearTimeout(timeout);
         Logger.info('HTTP server closed gracefully');
         resolve();
@@ -87,24 +81,27 @@ export class HttpServerService implements IService {
     res.end(body);
   }
 
-  private handleRequest(req: http.IncomingMessage, res: http.ServerResponse): void {
+  private handleRequestSafe(req: http.IncomingMessage, res: http.ServerResponse): void {
+    // Deliberately ignore the promise
+    void this.handleRequest(req, res).catch((error) => {
+      Logger.error('Request handling error', error as Error);
+      this.sendResponse(res, 500, 'Internal Server Error');
+    });
+  }
+
+  private async handleRequest(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
     const url = new URL(req.url!, `http://${req.headers.host}`);
 
-    switch (url.pathname) {
-      case '/health':
-        this.handleHealthCheck(res);
-        break;
-      case '/admin':
-        this.handleAdminPanel(res);
-        break;
-      default:
-        this.sendResponse(res, 404, 'Not Found');
+    if (url.pathname === '/health') {
+      await this.handleHealthCheck(res);
+    } else {
+      this.sendResponse(res, 404, 'Not Found');
     }
   }
 
-  private handleHealthCheck(res: http.ServerResponse): void {
+  private async handleHealthCheck(res: http.ServerResponse): Promise<void> {
     try {
-      const subscriberCount = this.subscriberService.getSubscriberCount();
+      const subscriberCount = await this.subscriberService.getSubscriberCount();
       const timestamp = DateTime.now().setZone(Config.TIMEZONE).toISO();
 
       if (!timestamp) {
@@ -122,6 +119,7 @@ export class HttpServerService implements IService {
             details: {
               uptime: process.uptime(),
               activeConnections: this.activeConnections.size,
+              memory: Math.round(process.memoryUsage().rss / 1024 / 1024) + 'MB',
             },
           },
           storage: {
@@ -156,61 +154,5 @@ export class HttpServerService implements IService {
 
       this.sendResponse(res, 503, health);
     }
-  }
-
-  private handleAdminPanel(res: http.ServerResponse): void {
-    try {
-      const subscriberCount = this.subscriberService.getSubscriberCount();
-      const subscribers = this.subscriberService.getAllSubscribers();
-      const addr = this.server?.address() as { address: string; port: number } | null;
-      const listeningAddress = addr ? `${addr.address}:${addr.port}` : 'unknown';
-
-      const html = this.generateAdminHtml(subscribers, subscriberCount, listeningAddress);
-
-      res.writeHead(200, {
-        'Content-Type': 'text/html',
-        'Content-Length': Buffer.byteLength(html),
-      });
-      res.end(html);
-    } catch (error) {
-      Logger.error('Failed to generate admin panel', error as Error);
-      this.sendResponse(res, 500, 'Internal Server Error');
-    }
-  }
-
-  private generateAdminHtml(subscribers: number[], count: number, listeningAddress: string): string {
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <title>Flag Bot Admin</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f7f6; color: #333; }
-        .container { max-width: 800px; margin: auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #2c5e3a; text-align: center; }
-        .stats { background: #e8f5e9; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #4CAF50; }
-        .stats h2 { margin-top: 0; color: #2e7d32; }
-        .chat-id { font-family: monospace; background: #f0f0f0; padding: 4px 8px; border-radius: 4px; margin: 0 4px; display: inline-block; }
-        h2 { color: #2c5e3a; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-        code { background: #eee; padding: 2px 5px; border-radius: 3px; }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>🇱🇻 Flag Day Reminder Bot - Admin Panel</h1>
-        <div class="stats">
-          <h2>Current Status</h2>
-          <p><strong>Total Subscribers:</strong> ${count}</p>
-          <p><strong>Subscriber Chat IDs:</strong> 
-            ${subscribers.length > 0 ? subscribers.map((id) => `<span class="chat-id">${id}</span>`).join(', ') : '<em>None yet</em>'}
-          </p>
-          <p><strong>Listening on:</strong> <code>${listeningAddress}</code></p>
-          <p><strong>Server Time (Riga):</strong> ${DateTime.now().setZone('Europe/Riga').toLocaleString(DateTime.DATETIME_FULL)}</p>
-        </div>
-      </div>
-    </body>
-    </html>
-  `;
   }
 }
