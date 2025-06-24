@@ -1,6 +1,8 @@
 import { DateTime } from 'luxon';
-import { FlagDay, DynamicDate, IFlagDayService, IDynamicDatesService } from '../types/types';
+
 import { Config } from '../config/config';
+
+import type { DynamicDate, FlagDay, IDynamicDatesService, IFlagDayService } from '../types/types';
 
 export class FlagDayService implements IFlagDayService {
   private static readonly STATIC_FLAG_DAYS: Readonly<FlagDay[]> = Object.freeze([
@@ -15,15 +17,11 @@ export class FlagDayService implements IFlagDayService {
     { month: 11, day: 18, type: 'normal', description: 'Latvijas Republikas proklamēšanas diena' },
     { month: 3, day: 25, type: 'mourning', description: 'Komunistiskā genocīda upuru piemiņas diena' },
   ]);
-
   private readonly yearlyCache = new Map<number, (FlagDay | DynamicDate)[]>();
   private todayCache: { date: string; result: FlagDay | DynamicDate | null } | null = null;
 
   constructor(private readonly dynamicDatesService: IDynamicDatesService) {}
 
-  /**
-   * Returns all flag days for a year with caching.
-   */
   getAllFlagDaysForYear(year: number): (FlagDay | DynamicDate)[] {
     if (this.yearlyCache.has(year)) {
       return this.yearlyCache.get(year)!;
@@ -31,16 +29,12 @@ export class FlagDayService implements IFlagDayService {
 
     const allDays: (FlagDay | DynamicDate)[] = [...FlagDayService.STATIC_FLAG_DAYS];
     const dynamicDates = this.dynamicDatesService.getDynamicDatesForYear(year);
-
     allDays.push(...dynamicDates);
     this.yearlyCache.set(year, allDays);
 
     return allDays;
   }
 
-  /**
-   * Optimized check for today's flag day with caching.
-   */
   getFlagDayToday(): FlagDay | DynamicDate | null {
     const today = DateTime.local({ zone: Config.TIMEZONE });
     const todayKey = today.toISODate();
@@ -66,5 +60,36 @@ export class FlagDayService implements IFlagDayService {
     this.todayCache = { date: todayKey, result: dynamicDate };
 
     return dynamicDate;
+  }
+
+  getNextFlagDay(): { flagDay: FlagDay | DynamicDate; year: number } | null {
+    const today = DateTime.local({ zone: Config.TIMEZONE });
+    const currentYear = today.year;
+
+    // Get all flag days for current year and next year
+    const currentYearDays = this.getAllFlagDaysForYear(currentYear);
+    const nextYearDays = this.getAllFlagDaysForYear(currentYear + 1);
+
+    // Combine and convert to DateTime objects for comparison
+    const allFlagDays: Array<{ flagDay: FlagDay | DynamicDate; year: number; dateTime: DateTime }> = [];
+
+    // Add current year days
+    currentYearDays.forEach((flagDay) => {
+      const flagDateTime = DateTime.local(currentYear, flagDay.month, flagDay.day, { zone: Config.TIMEZONE });
+      if (flagDateTime > today) {
+        allFlagDays.push({ flagDay, year: currentYear, dateTime: flagDateTime });
+      }
+    });
+
+    // Add next year days
+    nextYearDays.forEach((flagDay) => {
+      const flagDateTime = DateTime.local(currentYear + 1, flagDay.month, flagDay.day, { zone: Config.TIMEZONE });
+      allFlagDays.push({ flagDay, year: currentYear + 1, dateTime: flagDateTime });
+    });
+
+    // Sort by date and return the first one
+    allFlagDays.sort((a, b) => a.dateTime.toMillis() - b.dateTime.toMillis());
+
+    return allFlagDays.length > 0 ? { flagDay: allFlagDays[0].flagDay, year: allFlagDays[0].year } : null;
   }
 }

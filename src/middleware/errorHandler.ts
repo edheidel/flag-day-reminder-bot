@@ -1,4 +1,5 @@
 import { Context, MiddlewareFn } from 'telegraf';
+
 import { Logger } from '../utils/Logger';
 
 export const errorHandler: MiddlewareFn<Context> = async (ctx, next) => {
@@ -6,7 +7,6 @@ export const errorHandler: MiddlewareFn<Context> = async (ctx, next) => {
     await next();
   } catch (error) {
     Logger.error('Bot error', error);
-
     try {
       await ctx.reply('Diemžēl radās kļūda. Lūdzu, mēģiniet vēlreiz vēlāk.');
     } catch (replyError) {

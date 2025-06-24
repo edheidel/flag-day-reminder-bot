@@ -1,8 +1,10 @@
 import { Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
-import type { IFlagDayService, ISubscriberService, BotContext } from '../types/types';
+
 import { MessageService } from '../services/MessageService';
 import { Logger } from '../utils/Logger';
+
+import type { BotContext, IFlagDayService, ISubscriberService } from '../types/types';
 
 export class CommandProcessor {
   constructor(
@@ -34,7 +36,6 @@ export class CommandProcessor {
       const year = new Date().getFullYear();
       const flagDays = this.flagDayService.getAllFlagDaysForYear(year);
       const message = MessageService.buildFlagDaysMessage(flagDays, year);
-
       await ctx.reply(message, { parse_mode: 'Markdown' });
     } catch (error) {
       Logger.error('Error in handleListCommand', error);
@@ -101,22 +102,11 @@ export class CommandProcessor {
   private async handleHealthCommand(ctx: BotContext): Promise<void> {
     const isAdmin = ctx.from?.id === parseInt(process.env.ADMIN_ID || '0', 10);
 
-    if (!isAdmin) {
-      return;
-    }
+    if (!isAdmin) return;
 
     try {
-      const subscriberCount = await this.subscriberService.getSubscriberCount();
-      const uptime = process.uptime();
-      const memoryUsage = Math.round(process.memoryUsage().rss / 1024 / 1024);
-
-      await ctx.reply(
-        '*Bot Health Status*\n\n' +
-        `- Uptime: ${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m\n` +
-        `- Subscribers: ${subscriberCount}\n` +
-        `- Memory: ${memoryUsage}MB`,
-        { parse_mode: 'Markdown' },
-      );
+      const message = await MessageService.buildHealthMessage(this.subscriberService);
+      await ctx.reply(message, { parse_mode: 'Markdown' });
     } catch (error) {
       Logger.error('Error in handleHealthCommand', error);
       await ctx.reply('Kļūda iegūstot veselības informāciju.');

@@ -29,6 +29,7 @@ export interface IDynamicDatesService {
 export interface IFlagDayService {
   getAllFlagDaysForYear(year: number): (FlagDay | DynamicDate)[];
   getFlagDayToday(): FlagDay | DynamicDate | null;
+  getNextFlagDay(): { flagDay: FlagDay | DynamicDate; year: number } | null;
 }
 
 export interface ISubscriberService {
@@ -41,13 +42,10 @@ export interface ISubscriberService {
   stop(): void;
 }
 
-export interface HealthCheckResult {
+export interface HealthStatus {
   status: 'UP' | 'DOWN';
-  components: {
-    [key: string]: {
-      status: 'UP' | 'DOWN';
-      details?: Record<string, unknown>;
-    };
-  };
+  uptime: number;
+  subscribers: number;
+  memory: string;
   timestamp: string;
 }

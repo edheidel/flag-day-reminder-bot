@@ -1,10 +1,12 @@
-import * as cron from 'node-cron';
 import { DateTime } from 'luxon';
+import * as cron from 'node-cron';
 import { Telegraf } from 'telegraf';
-import { IFlagDayService, ISubscriberService, BotContext } from '../types/types';
-import { MessageService } from './MessageService';
-import { Logger } from '../utils/Logger';
+
 import { Config } from '../config/config';
+import { BotContext, IFlagDayService, ISubscriberService } from '../types/types';
+import { Logger } from '../utils/Logger';
+
+import { MessageService } from './MessageService';
 
 export class NotificationService {
   private cronJob: cron.ScheduledTask | null = null;
@@ -17,6 +19,7 @@ export class NotificationService {
 
   start(): void {
     this.cronJob = cron.schedule(
+      // '51 18 * * *', // debug
       `0 ${Config.NOTIFICATION_TIME} * * *`,
       () => void this.sendNotifications(),
       { timezone: Config.TIMEZONE },
@@ -38,7 +41,6 @@ export class NotificationService {
 
   async sendNotifications(): Promise<void> {
     const startTime = Date.now();
-
     Logger.info('Starting flag day reminder check...');
 
     try {
@@ -59,19 +61,14 @@ export class NotificationService {
       }
 
       const today = DateTime.local({ zone: Config.TIMEZONE });
-      const reminderMessage = MessageService.buildReminderMessage(flagDayInfo, today);
-
+      const reminderMessage = MessageService.buildReminderMessage(flagDayInfo, today, this.flagDayService);
       Logger.info(`Sending reminders to ${subscribers.length} subscribers for: ${flagDayInfo.description}`);
-
       const results = await Promise.allSettled(
         subscribers.map((chatId) => this.sendMessage(chatId, reminderMessage)),
       );
-
       const successCount = results.filter((r) => r.status === 'fulfilled' && r.value.success).length;
       const errorCount = results.filter((r) => r.status === 'rejected' || !r.value?.success).length;
-
       const duration = Date.now() - startTime;
-
       Logger.info(`Reminder sending completed in ${duration}ms. Success: ${successCount}, Errors: ${errorCount}`);
     } catch (error) {
       Logger.error('Error during reminder sending', error);
@@ -80,7 +77,7 @@ export class NotificationService {
 
   private async sendMessage(chatId: number, message: string): Promise<{success: boolean, chatId: number}> {
     try {
-      await this.bot.telegram.sendMessage(chatId, message);
+      await this.bot.telegram.sendMessage(chatId, message, { parse_mode: 'Markdown' });
 
       return { success: true, chatId };
     } catch (error) {

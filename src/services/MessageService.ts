@@ -1,6 +1,8 @@
 import { DateTime } from 'luxon';
-import { FlagDay, DynamicDate } from '../types/types';
+
+import { DynamicDate, FlagDay, type IFlagDayService, type ISubscriberService } from '../types/types';
 import { DateFormatter } from '../utils/DateFormatter';
+import { WikipediaLinkBuilder } from '../utils/WikipediaLinkBuilder';
 
 export class MessageService {
   static buildFlagDaysMessage(flagDays: (FlagDay | DynamicDate)[], year: number): string {
@@ -20,20 +22,38 @@ export class MessageService {
 
     for (const flagDay of sortedDays) {
       const dateStr = DateFormatter.formatLatvianDate(flagDay.day, flagDay.month);
-
-      message += `${flagDay.type === 'mourning' ? '🏴' : '🇱🇻'} *${dateStr}* - ${flagDay.description}\n`;
+      const descriptionWithLink = WikipediaLinkBuilder.createMarkdownLink(flagDay.description);
+      message += `${flagDay.type === 'mourning' ? '🏴' : '🇱🇻'} *${dateStr}* - ${descriptionWithLink}\n`;
     }
 
     return message;
   }
 
-  static buildReminderMessage(flagDayInfo: FlagDay | DynamicDate, today: DateTime): string {
+  static buildReminderMessage(
+    flagDayInfo: FlagDay | DynamicDate,
+    today: DateTime,
+    flagDayService: IFlagDayService,
+  ): string {
     const dateStr = DateFormatter.formatLatvianDate(today.day, today.month);
-    const baseMessage = `Šodien, ${dateStr} - ${flagDayInfo.description}.`;
+    const descriptionWithLink = WikipediaLinkBuilder.createMarkdownLink(flagDayInfo.description);
+    const baseMessage = `Šodien, *${dateStr}* - ${descriptionWithLink}.`;
 
-    return flagDayInfo.type === 'normal'
-      ? `${baseMessage} Izkarat Latvijas valsts karogu!`
-      : `${baseMessage} Izkarat Latvijas valsts karogu ar melnu sēru lenti!`;
+    let reminderMessage = flagDayInfo.type === 'normal'
+      ? `🇱🇻 ${baseMessage}\n🫡 Izkarat Latvijas valsts karogu!`
+      : `🏴 ${baseMessage}\n🫡 Izkarat Latvijas valsts karogu ar melnu sēru lenti!`;
+
+    // Add next flag day information
+    const nextFlagDay = flagDayService.getNextFlagDay();
+    if (nextFlagDay) {
+      const nextDateStr = DateFormatter.formatLatvianDate(
+        nextFlagDay.flagDay.day,
+        nextFlagDay.flagDay.month,
+      );
+      const nextDescriptionWithLink = WikipediaLinkBuilder.createMarkdownLink(nextFlagDay.flagDay.description);
+      reminderMessage += `\n\n⏭️ Nākamā karoga diena: *${nextDateStr}* - ${nextDescriptionWithLink}`;
+    }
+
+    return reminderMessage;
   }
 
   static buildHelpMessage(): string {
@@ -44,5 +64,15 @@ export class MessageService {
       + '/subscribe - Abonēt karoga dienu atgādinājumus\n'
       + '/unsubscribe - Atcelt karoga dienu atgādinājumus\n'
       + '/help - Parādīt šo palīdzības ziņojumu';
+  }
+
+  static async buildHealthMessage(subscriberService: ISubscriberService): Promise<string> {
+    const subscriberCount = await subscriberService.getSubscriberCount();
+    const uptime = process.uptime();
+
+    return '*Bot Health Status*\n\n'
+      + `- Uptime: ${Math.floor(uptime / 3600)}h ${Math.floor((uptime % 3600) / 60)}m\n`
+      + `- Subscribers: ${subscriberCount}\n`
+      + `- Memory: ${Math.round(process.memoryUsage().rss / 1024 / 1024)}MB`;
   }
 }

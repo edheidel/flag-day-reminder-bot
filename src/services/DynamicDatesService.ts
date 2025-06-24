@@ -1,6 +1,8 @@
 import { DateTime } from 'luxon';
-import type { DynamicDate, IDynamicDatesService } from '../types/types';
+
 import { Config } from '../config/config';
+
+import type { DynamicDate, IDynamicDatesService } from '../types/types';
 
 export class DynamicDatesService implements IDynamicDatesService {
   private readonly yearCache = new Map<number, DynamicDate[]>();
@@ -13,13 +15,12 @@ export class DynamicDatesService implements IDynamicDatesService {
     const easterDate = this.calculateEaster(year);
     const goodFriday = easterDate.minus({ days: 2 });
     const firstSundayDec = this.calculateFirstSundayOfDecember(year);
-
     const dynamicDates: DynamicDate[] = [
       {
         month: goodFriday.month,
         day: goodFriday.day,
         year,
-        type: 'mourning',
+        type: 'normal',
         description: 'Lielā Piektdiena',
       },
       {
