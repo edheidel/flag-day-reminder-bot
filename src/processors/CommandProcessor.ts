@@ -1,10 +1,16 @@
-import { Telegraf } from 'telegraf';
+import { Markup, Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 
 import { MessageService } from '../services/MessageService';
 import { Logger } from '../utils/Logger';
 
 import type { BotContext, IFlagDayService, ISubscriberService } from '../types/types';
+import type { InlineKeyboardMarkup } from 'telegraf/types';
+
+interface MessageOptions {
+  parse_mode?: 'Markdown' | 'HTML';
+  reply_markup?: InlineKeyboardMarkup;
+}
 
 export class CommandProcessor {
   constructor(
@@ -14,21 +20,122 @@ export class CommandProcessor {
   ) {}
 
   registerCommands(): void {
-    this.bot.start(async (ctx) => {
-      await ctx.reply('Sveiki! Es esmu Latvijas karoga izkāršanas dienu atgādinātājs. Lietojiet /help lai apskatītu komandas.');
+    void this.setBotCommands();
+
+    this.bot.start(this.handleStartCommand.bind(this));
+
+    // Register both callback actions and commands with the same handlers
+    const commands = ['list', 'subscribe', 'unsubscribe', 'help', 'menu'];
+    commands.forEach((cmd) => {
+      this.bot.action(cmd === 'list' ? 'list_flag_days' : cmd === 'menu' ? 'main_menu' : cmd, this.getHandler(cmd));
+      this.bot.command(cmd, this.getHandler(cmd));
     });
 
-    this.bot.command('list', this.handleListCommand.bind(this));
-    this.bot.command('subscribe', this.handleSubscribeCommand.bind(this));
-    this.bot.command('unsubscribe', this.handleUnsubscribeCommand.bind(this));
-    this.bot.command('help', this.handleHelpCommand.bind(this));
     this.bot.command('health', this.handleHealthCommand.bind(this));
+    this.bot.on(message('text'), this.handleUnknownCommand.bind(this));
+  }
 
-    this.bot.on(message('text'), async (ctx) => {
-      if (ctx.message.text.startsWith('/')) {
-        await ctx.reply('Nezināma komanda. Izmantojiet /help, lai redzētu pieejamās komandas.');
+  private async setBotCommands(): Promise<void> {
+    try {
+      await this.bot.telegram.setMyCommands([
+        { command: 'start', description: 'Sākt darbu ar botu' },
+        { command: 'menu', description: 'Parādīt galveno izvēlni' },
+        { command: 'list', description: 'Parādīt karoga dienas' },
+        { command: 'subscribe', description: 'Abonēt atgādinājumus' },
+        { command: 'unsubscribe', description: 'Atcelt abonementu' },
+        { command: 'help', description: 'Palīdzība' },
+      ]);
+    } catch (error) {
+      Logger.error('Failed to set bot commands', error);
+    }
+  }
+
+  private getHandler(command: string) {
+    const handlers = {
+      list: this.handleListCommand.bind(this),
+      subscribe: this.handleSubscribeCommand.bind(this),
+      unsubscribe: this.handleUnsubscribeCommand.bind(this),
+      help: this.handleHelpCommand.bind(this),
+      menu: this.handleMainMenuCommand.bind(this),
+    };
+
+    return handlers[command as keyof typeof handlers];
+  }
+
+  private async handleStartCommand(ctx: BotContext): Promise<void> {
+    const isSubscribed = await this.subscriberService.isSubscribed(ctx.chat?.id || 0);
+    await ctx.reply(
+      'Sveiki! Es esmu Latvijas karoga izkāršanas dienu atgādinātājs.',
+      { reply_markup: this.getMainMenuKeyboard(isSubscribed) },
+    );
+  }
+
+  private async handleUnknownCommand(ctx: BotContext): Promise<void> {
+    // Check if message exists and has text property
+    if (ctx.message && 'text' in ctx.message && ctx.message.text?.startsWith('/')) {
+      const isSubscribed = await this.subscriberService.isSubscribed(ctx.chat?.id || 0);
+      await ctx.reply(
+        'Nezināma komanda. Izmantojiet izvēlni vai /help, lai redzētu pieejamās komandas.',
+        { reply_markup: this.getMainMenuKeyboard(isSubscribed) },
+      );
+    }
+  }
+
+  private getMainMenuKeyboard(isSubscribed: boolean): InlineKeyboardMarkup {
+    const subscriptionButton = isSubscribed
+      ? Markup.button.callback('🔕 Atcelt abonementu', 'unsubscribe')
+      : Markup.button.callback('🔔 Abonēt atgādinājumus', 'subscribe');
+
+    return Markup.inlineKeyboard([
+      [Markup.button.callback('📅 Karoga dienas', 'list_flag_days')],
+      [subscriptionButton],
+      [Markup.button.callback('❓ Palīdzība', 'help')],
+    ]).reply_markup;
+  }
+
+  private getBackToMenuKeyboard(): InlineKeyboardMarkup {
+    return Markup.inlineKeyboard([[Markup.button.callback('⬅️ Atpakaļ uz izvēlni', 'main_menu')]]).reply_markup;
+  }
+
+  private async sendResponse(
+    ctx: BotContext,
+    message: string,
+    options: MessageOptions = {},
+    callbackText?: string,
+  ): Promise<void> {
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, {
+        parse_mode: options.parse_mode,
+        reply_markup: options.reply_markup,
+      });
+      if (callbackText) {
+        await ctx.answerCbQuery(callbackText);
+      } else {
+        await ctx.answerCbQuery();
       }
-    });
+    } else {
+      await ctx.reply(message, options);
+    }
+  }
+
+  private async handleError(ctx: BotContext, error: unknown, errorMessage: string, logPrefix: string): Promise<void> {
+    Logger.error(logPrefix, error);
+    if (ctx.callbackQuery) {
+      await ctx.answerCbQuery(errorMessage);
+    } else {
+      await ctx.reply(errorMessage);
+    }
+  }
+
+  private async handleMainMenuCommand(ctx: BotContext): Promise<void> {
+    try {
+      const isSubscribed = await this.subscriberService.isSubscribed(ctx.chat?.id || 0);
+      await this.sendResponse(ctx, 'Izvēlieties darbību:', {
+        reply_markup: this.getMainMenuKeyboard(isSubscribed),
+      });
+    } catch (error) {
+      await this.handleError(ctx, error, 'Kļūda ielādējot izvēlni.', 'Error in handleMainMenuCommand');
+    }
   }
 
   private async handleListCommand(ctx: BotContext): Promise<void> {
@@ -36,19 +143,19 @@ export class CommandProcessor {
       const year = new Date().getFullYear();
       const flagDays = this.flagDayService.getAllFlagDaysForYear(year);
       const message = MessageService.buildFlagDaysMessage(flagDays, year);
-      await ctx.reply(message, { parse_mode: 'Markdown' });
+
+      await this.sendResponse(ctx, message, {
+        parse_mode: 'Markdown',
+        reply_markup: this.getBackToMenuKeyboard(),
+      });
     } catch (error) {
-      Logger.error('Error in handleListCommand', error);
-      await ctx.reply('Kļūda iegūstot karoga dienas.');
+      await this.handleError(ctx, error, 'Kļūda iegūstot karoga dienas.', 'Error in handleListCommand');
     }
   }
 
   private async handleSubscribeCommand(ctx: BotContext): Promise<void> {
     const chatId = ctx.chat?.id;
-
-    if (!chatId) {
-      return;
-    }
+    if (!chatId) return;
 
     try {
       const added = await this.subscriberService.addSubscriber(chatId);
@@ -59,22 +166,20 @@ export class CommandProcessor {
 
       const count = await this.subscriberService.getSubscriberCount();
       const message = added
-        ? `Abonements aktivizēts! Jūs tagad saņemsiet atgādinājumus par karoga dienām.\nKopā abonentu: ${count}`
-        : 'Jūs jau esat abonējis atgādinājumus.';
+        ? `✅ Abonements aktivizēts! Jūs tagad saņemsiet atgādinājumus par karoga dienām.\nKopā abonentu: ${count}`
+        : '✅ Jūs jau esat abonējis atgādinājumus.';
 
-      await ctx.reply(message);
+      await this.sendResponse(ctx, message, {
+        reply_markup: this.getBackToMenuKeyboard(),
+      }, 'Abonements aktivizēts!');
     } catch (error) {
-      Logger.error('Error in handleSubscribeCommand', error);
-      await ctx.reply('Kļūda abonējot atgādinājumus.');
+      await this.handleError(ctx, error, 'Kļūda abonējot atgādinājumus.', 'Error in handleSubscribeCommand');
     }
   }
 
   private async handleUnsubscribeCommand(ctx: BotContext): Promise<void> {
     const chatId = ctx.chat?.id;
-
-    if (!chatId) {
-      return;
-    }
+    if (!chatId) return;
 
     try {
       const removed = await this.subscriberService.removeSubscriber(chatId);
@@ -83,25 +188,31 @@ export class CommandProcessor {
         ctx.session.subscribed = false;
       }
 
-      await ctx.reply(removed ? 'Abonements atcelts.' : 'Jūs neesat abonējis atgādinājumus.');
+      const message = removed ? '🔕 Abonements atcelts.' : '❌ Jūs neesat abonējis atgādinājumus.';
+      const callbackText = removed ? 'Abonements atcelts!' : 'Jūs neesat abonējis';
+
+      await this.sendResponse(ctx, message, {
+        reply_markup: this.getBackToMenuKeyboard(),
+      }, callbackText);
     } catch (error) {
-      Logger.error('Error in handleUnsubscribeCommand', error);
-      await ctx.reply('Kļūda atceļot abonementu.');
+      await this.handleError(ctx, error, 'Kļūda atceļot abonementu.', 'Error in handleUnsubscribeCommand');
     }
   }
 
   private async handleHelpCommand(ctx: BotContext): Promise<void> {
     try {
-      await ctx.reply(MessageService.buildHelpMessage(), { parse_mode: 'Markdown' });
+      const helpMessage = MessageService.buildHelpMessage();
+      await this.sendResponse(ctx, helpMessage, {
+        parse_mode: 'Markdown',
+        reply_markup: this.getBackToMenuKeyboard(),
+      });
     } catch (error) {
-      Logger.error('Error in handleHelpCommand', error);
-      await ctx.reply('Kļūda ielādējot palīdzības informāciju.');
+      await this.handleError(ctx, error, 'Kļūda ielādējot palīdzības informāciju.', 'Error in handleHelpCommand');
     }
   }
 
   private async handleHealthCommand(ctx: BotContext): Promise<void> {
     const isAdmin = ctx.from?.id === parseInt(process.env.ADMIN_ID || '0', 10);
-
     if (!isAdmin) return;
 
     try {

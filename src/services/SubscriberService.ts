@@ -73,8 +73,16 @@ export class SubscriberService implements ISubscriberService {
     return true;
   }
 
-  async isSubscribed(chatId: number): Promise<boolean> {
-    return this.subscribers.has(chatId);
+  public async isSubscribed(chatId: number): Promise<boolean> {
+    try {
+      const subscribers = await this.getAllSubscribers();
+
+      return subscribers.includes(chatId);
+    } catch (error) {
+      Logger.error('Error checking subscription status', error);
+
+      return false;
+    }
   }
 
   async getAllSubscribers(): Promise<number[]> {
