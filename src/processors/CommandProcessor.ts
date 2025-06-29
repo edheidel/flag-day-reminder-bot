@@ -166,7 +166,7 @@ export class CommandProcessor {
         const { day, month, description, type } = flagDay;
         const dateStr = `${DateFormatter.formatLatvianDate(day, month)}, ${year}`;
         const descriptionWithLink = WikipediaLinkBuilder.createMarkdownLink(description);
-        const message = `${type === 'mourning' ? '🏴' : '🇱🇻'} Nākamā karoga diena:\n\n*${dateStr}* - ${descriptionWithLink}`;
+        const message = `Nākamā karoga diena:\n\n${type === 'mourning' ? '🏴' : '🇱🇻'} *${dateStr}* - ${descriptionWithLink}`;
 
         await this.sendResponse(ctx, message, {
           parse_mode: 'Markdown',
