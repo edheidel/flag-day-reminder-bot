@@ -12,6 +12,7 @@ export class FlagDayService implements IFlagDayService {
     { month: 6, day: 14, type: 'mourning', description: 'Komunistiskā genocīda upuru piemiņas diena' },
     { month: 6, day: 17, type: 'mourning', description: 'Latvijas Republikas okupācijas diena' },
     { month: 7, day: 4, type: 'mourning', description: 'Ebreju tautas genocīda upuru piemiņas diena' },
+    { month: 8, day: 21, type: 'normal', description: 'Konstitucionālā likuma "Par Latvijas Republikas valstisko statusu" pieņemšanas diena' },
     { month: 11, day: 11, type: 'normal', description: 'Lāčplēša diena' },
     { month: 11, day: 18, type: 'normal', description: 'Latvijas Republikas proklamēšanas diena' },
   ]);

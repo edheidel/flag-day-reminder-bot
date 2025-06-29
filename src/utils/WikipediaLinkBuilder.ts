@@ -7,6 +7,7 @@ export class WikipediaLinkBuilder {
   private static readonly SPECIAL_MAPPINGS: Map<string, string> = new Map([
     ['Ebreju tautas genocīda upuru piemiņas diena', 'Holokausts_Latvijā'],
     ['Komunistiskā režīma upuru piemiņas diena', 'Pret_latviešu_tautu_vērstā_totalitārā_komunistiskā_režīma_genocīda_upuru_piemiņas_diena'],
+    ['Konstitucionālā likuma "Par Latvijas Republikas valstisko statusu" pieņemšanas diena', 'Par_Latvijas_Republikas_valstisko_statusu'],
   ]);
 
   /**
