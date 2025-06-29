@@ -1,5 +1,7 @@
 import { Context } from 'telegraf';
 
+import type { InlineKeyboardMarkup } from 'telegraf/types';
+
 export interface SessionData {
   subscribed?: boolean;
 }
@@ -40,4 +42,12 @@ export interface ISubscriberService {
   getAllSubscribers(): Promise<number[]>;
   getSubscriberCount(): Promise<number>;
   stop(): void;
+}
+
+export interface MessageOptions {
+  parse_mode?: 'Markdown' | 'HTML';
+  reply_markup?: InlineKeyboardMarkup;
+  link_preview_options?: {
+    is_disabled?: boolean;
+  };
 }

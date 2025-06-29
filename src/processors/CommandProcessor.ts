@@ -4,14 +4,10 @@ import { message } from 'telegraf/filters';
 import { MessageService } from '../services/MessageService';
 import { DateFormatter } from '../utils/DateFormatter';
 import { Logger } from '../utils/Logger';
+import { WikipediaLinkBuilder } from '../utils/WikipediaLinkBuilder';
 
-import type { BotContext, IFlagDayService, ISubscriberService } from '../types/types';
+import type { BotContext, IFlagDayService, ISubscriberService, MessageOptions } from '../types/types';
 import type { InlineKeyboardMarkup } from 'telegraf/types';
-
-interface MessageOptions {
-  parse_mode?: 'Markdown' | 'HTML';
-  reply_markup?: InlineKeyboardMarkup;
-}
 
 export class CommandProcessor {
   constructor(
@@ -155,6 +151,7 @@ export class CommandProcessor {
       await this.sendResponse(ctx, message, {
         parse_mode: 'Markdown',
         reply_markup: this.getBackToMenuKeyboard(),
+        link_preview_options: { is_disabled: true },
       });
     } catch (error) {
       await this.handleError(ctx, error, 'Kļūda iegūstot karoga dienas.', 'Error in handleListCommand');
@@ -167,10 +164,9 @@ export class CommandProcessor {
       if (nextFlagDayInfo) {
         const { flagDay, year } = nextFlagDayInfo;
         const { day, month, description, type } = flagDay;
-
         const dateStr = `${DateFormatter.formatLatvianDate(day, month)}, ${year}`;
-        const typeStr = type === 'mourning' ? ' (sēru noformējums)' : '';
-        const message = `${type === 'mourning' ? '🏴' : '🇱🇻'} Nākamā karoga diena:\n\n*${dateStr}* - ${description}${typeStr}`;
+        const descriptionWithLink = WikipediaLinkBuilder.createMarkdownLink(description);
+        const message = `${type === 'mourning' ? '🏴' : '🇱🇻'} Nākamā karoga diena:\n\n*${dateStr}* - ${descriptionWithLink}`;
 
         await this.sendResponse(ctx, message, {
           parse_mode: 'Markdown',
