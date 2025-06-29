@@ -35,7 +35,6 @@ A Telegram bot that reminds about Latvia's flag days.
 - `BOT_TOKEN` - Telegram bot token (required)
 - `NOTIFICATION_TIME` - Hour for daily notifications (default: 7)
 - `TIMEZONE` - Timezone for notifications (default: Europe/Riga)
-- `HTTP_PORT` - Port for HTTP server (default: 3000)
 - `ENV` - Environment name (development/production)
 - `STORAGE_PATH` - Path for storing subscriber data
 

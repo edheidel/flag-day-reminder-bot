@@ -2,6 +2,7 @@ import { Markup, Telegraf } from 'telegraf';
 import { message } from 'telegraf/filters';
 
 import { MessageService } from '../services/MessageService';
+import { DateFormatter } from '../utils/DateFormatter';
 import { Logger } from '../utils/Logger';
 
 import type { BotContext, IFlagDayService, ISubscriberService } from '../types/types';
@@ -25,7 +26,7 @@ export class CommandProcessor {
     this.bot.start(this.handleStartCommand.bind(this));
 
     // Register both callback actions and commands with the same handlers
-    const commands = ['list', 'subscribe', 'unsubscribe', 'help', 'menu'];
+    const commands = ['list', 'subscribe', 'unsubscribe', 'help', 'menu', 'next'];
     commands.forEach((cmd) => {
       this.bot.action(cmd === 'list' ? 'list_flag_days' : cmd === 'menu' ? 'main_menu' : cmd, this.getHandler(cmd));
       this.bot.command(cmd, this.getHandler(cmd));
@@ -41,6 +42,7 @@ export class CommandProcessor {
         { command: 'start', description: 'Sākt darbu ar botu' },
         { command: 'menu', description: 'Parādīt galveno izvēlni' },
         { command: 'list', description: 'Parādīt karoga dienas' },
+        { command: 'next', description: 'Parādīt nākamo karoga dienu' },
         { command: 'subscribe', description: 'Abonēt atgādinājumus' },
         { command: 'unsubscribe', description: 'Atcelt abonementu' },
         { command: 'help', description: 'Palīdzība' },
@@ -57,6 +59,7 @@ export class CommandProcessor {
       unsubscribe: this.handleUnsubscribeCommand.bind(this),
       help: this.handleHelpCommand.bind(this),
       menu: this.handleMainMenuCommand.bind(this),
+      next: this.handleNextCommand.bind(this),
     };
 
     return handlers[command as keyof typeof handlers];
@@ -64,10 +67,17 @@ export class CommandProcessor {
 
   private async handleStartCommand(ctx: BotContext): Promise<void> {
     const isSubscribed = await this.subscriberService.isSubscribed(ctx.chat?.id || 0);
+    const welcomeMessage = 'Sveiki! Es esmu Latvijas karoga izkāršanas dienu atgādinātājs.\n\nSaskaņā ar Satversmes tiesas lēmumu, kas stājās spēkā 2015. gadā, pilsoņiem ir sagaidāms izkārt karogu svētku dienās, taču par tā neizkāršanu sods netiek piemērots. Plašāku informāciju vari atrast šeit: [https://lvportals.lv/skaidrojumi/277720-privatpersonas-nevar-sodit-par-valsts-karoga-neizkarsanu-2016](https://lvportals.lv/skaidrojumi/277720-privatpersonas-nevar-sodit-par-valsts-karoga-neizkarsanu-2016).';
+
     await ctx.reply(
-      'Sveiki! Es esmu Latvijas karoga izkāršanas dienu atgādinātājs.',
-      { reply_markup: this.getMainMenuKeyboard(isSubscribed) },
+      welcomeMessage,
+      {
+        parse_mode: 'Markdown',
+        link_preview_options: { is_disabled: true },
+        reply_markup: this.getMainMenuKeyboard(isSubscribed),
+      },
     );
+
   }
 
   private async handleUnknownCommand(ctx: BotContext): Promise<void> {
@@ -88,6 +98,7 @@ export class CommandProcessor {
 
     return Markup.inlineKeyboard([
       [Markup.button.callback('📅 Karoga dienas', 'list_flag_days')],
+      [Markup.button.callback('➡️ Nākamā karoga diena', 'next')],
       [subscriptionButton],
       [Markup.button.callback('❓ Palīdzība', 'help')],
     ]).reply_markup;
@@ -150,6 +161,31 @@ export class CommandProcessor {
       });
     } catch (error) {
       await this.handleError(ctx, error, 'Kļūda iegūstot karoga dienas.', 'Error in handleListCommand');
+    }
+  }
+
+  private async handleNextCommand(ctx: BotContext): Promise<void> {
+    try {
+      const nextFlagDayInfo = this.flagDayService.getNextFlagDay();
+      if (nextFlagDayInfo) {
+        const { flagDay, year } = nextFlagDayInfo;
+        const { day, month, description, type } = flagDay;
+
+        const dateStr = `${DateFormatter.formatLatvianDate(day, month)}, ${year}`;
+        const typeStr = type === 'mourning' ? ' (sēru noformējums)' : '';
+        const message = `Nākamā karoga diena:\n\n*${dateStr}* - ${description}${typeStr}`;
+
+        await this.sendResponse(ctx, message, {
+          parse_mode: 'Markdown',
+          reply_markup: this.getBackToMenuKeyboard(),
+        });
+      } else {
+        await this.sendResponse(ctx, 'Neizdevās atrast nākamo karoga dienu.', {
+          reply_markup: this.getBackToMenuKeyboard(),
+        });
+      }
+    } catch (error) {
+      await this.handleError(ctx, error, 'Kļūda iegūstot nākamo karoga dienu.', 'Error in handleNextCommand');
     }
   }
 

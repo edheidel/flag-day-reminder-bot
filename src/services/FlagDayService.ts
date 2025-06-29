@@ -6,16 +6,14 @@ import type { DynamicDate, FlagDay, IDynamicDatesService, IFlagDayService } from
 
 export class FlagDayService implements IFlagDayService {
   private static readonly STATIC_FLAG_DAYS: Readonly<FlagDay[]> = Object.freeze([
+    { month: 3, day: 25, type: 'mourning', description: 'Komunistiskā genocīda upuru piemiņas diena' },
     { month: 5, day: 1, type: 'normal', description: 'Latvijas Republikas Satversmes sapulces sasaukšanas diena' },
     { month: 5, day: 4, type: 'normal', description: 'Latvijas Republikas Neatkarības deklarācijas pasludināšanas diena' },
     { month: 6, day: 14, type: 'mourning', description: 'Komunistiskā genocīda upuru piemiņas diena' },
     { month: 6, day: 17, type: 'mourning', description: 'Latvijas Republikas okupācijas diena' },
-    { month: 6, day: 23, type: 'normal', description: 'Līgo diena' },
-    { month: 6, day: 24, type: 'normal', description: 'Jāņu diena' },
     { month: 7, day: 4, type: 'mourning', description: 'Ebreju tautas genocīda upuru piemiņas diena' },
     { month: 11, day: 11, type: 'normal', description: 'Lāčplēša diena' },
     { month: 11, day: 18, type: 'normal', description: 'Latvijas Republikas proklamēšanas diena' },
-    { month: 3, day: 25, type: 'mourning', description: 'Komunistiskā genocīda upuru piemiņas diena' },
   ]);
   private readonly yearlyCache = new Map<number, (FlagDay | DynamicDate)[]>();
   private todayCache: { date: string; result: FlagDay | DynamicDate | null } | null = null;
