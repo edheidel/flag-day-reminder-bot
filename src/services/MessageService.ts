@@ -56,16 +56,6 @@ export class MessageService {
     return reminderMessage;
   }
 
-  static buildHelpMessage(): string {
-    return '*Latvijas karoga izkāršanas dienu atgādinātājs*\n\n'
-      + 'Komandas:\n'
-      + '/start - Sākt darbu ar botu\n'
-      + '/list - Parādīt karoga dienu sarakstu\n'
-      + '/subscribe - Abonēt karoga dienu atgādinājumus\n'
-      + '/unsubscribe - Atcelt karoga dienu atgādinājumus\n'
-      + '/help - Parādīt šo palīdzības ziņojumu';
-  }
-
   static async buildHealthMessage(subscriberService: ISubscriberService): Promise<string> {
     const subscriberCount = await subscriberService.getSubscriberCount();
     const uptime = process.uptime();

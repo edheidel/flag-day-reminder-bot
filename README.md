@@ -16,7 +16,6 @@ A Telegram bot that reminds about Latvia's flag days.
 - `/subscribe` - Subscribe to daily reminders
 - `/unsubscribe` - Unsubscribe from reminders
 - `/status` - Check subscription status
-- `/help` - Show help
 
 ## Setup
 
