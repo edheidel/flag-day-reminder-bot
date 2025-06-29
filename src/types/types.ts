@@ -41,11 +41,3 @@ export interface ISubscriberService {
   getSubscriberCount(): Promise<number>;
   stop(): void;
 }
-
-export interface HealthStatus {
-  status: 'UP' | 'DOWN';
-  uptime: number;
-  subscribers: number;
-  memory: string;
-  timestamp: string;
-}

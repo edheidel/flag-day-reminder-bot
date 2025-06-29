@@ -6,7 +6,6 @@ import { loggerMiddleware } from './middleware/loggerMiddleware';
 import { CommandProcessor } from './processors/CommandProcessor';
 import { DynamicDatesService } from './services/DynamicDatesService';
 import { FlagDayService } from './services/FlagDayService';
-import { HealthService } from './services/HealthService';
 import { NotificationService } from './services/NotificationService';
 import { SubscriberService } from './services/SubscriberService';
 import { BotContext } from './types/types';
@@ -14,17 +13,12 @@ import { Logger } from './utils/Logger';
 
 let bot: Telegraf<BotContext> | null = null;
 let notificationScheduler: NotificationService | null = null;
-let healthServer: HealthService | null = null;
 let subscriberService: SubscriberService | null = null;
 
 async function shutdown(signal: string): Promise<void> {
   Logger.warn('Shutting down application', { signal });
 
   try {
-    if (healthServer) {
-      healthServer.stop();
-    }
-
     if (notificationScheduler) {
       notificationScheduler.stop();
     }
@@ -73,8 +67,6 @@ async function main(): Promise<void> {
     commandProcessor.registerCommands();
     notificationScheduler = new NotificationService(bot, flagDayService, subscriberService);
     notificationScheduler.start();
-    healthServer = new HealthService(subscriberService);
-    healthServer.start();
 
     try {
       await bot.launch();
